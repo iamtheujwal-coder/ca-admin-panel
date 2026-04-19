@@ -50,10 +50,13 @@ const isAdmin = (req, res, next) => {
 
 app.get('/api/health', async (req, res) => {
   try {
-    await getPrisma().$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', db: 'connected', env: process.env.NODE_ENV });
+    const p = getPrisma();
+    await p.$queryRaw`SELECT 1`;
+    const adminExists = await p.user.findFirst({ where: { role: 'ADMIN' } });
+    res.json({ status: 'ok', db: 'connected', env: process.env.NODE_ENV, seeded: !!adminExists });
   } catch (err) {
-    res.status(500).json({ status: 'error', error: err.message });
+    console.error('Health check DB error:', err);
+    res.status(500).json({ status: 'error', db: 'disconnected', error: err.message });
   }
 });
 
