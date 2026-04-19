@@ -42,10 +42,12 @@ const isAdmin = (req, res, next) => {
 // --- Health Check ---
 app.get('/api/health', async (req, res) => {
   try {
+    console.log('Health check: checking DB connection...');
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', db: 'connected', environment: process.env.NODE_ENV });
   } catch (err) {
-    res.json({ status: 'ok', db: 'disconnected', error: err.message });
+    console.error('Health check DB error:', err);
+    res.status(500).json({ status: 'error', db: 'disconnected', error: err.message, stack: err.stack });
   }
 });
 
