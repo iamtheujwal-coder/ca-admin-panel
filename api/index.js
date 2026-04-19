@@ -27,7 +27,7 @@ try {
   console.error("Critical: Prisma could not be initialized", e);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_dev_only';
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_ca_anand_key_2026';
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -53,10 +53,15 @@ app.get('/api/health', async (req, res) => {
     const p = getPrisma();
     await p.$queryRaw`SELECT 1`;
     const adminExists = await p.user.findFirst({ where: { role: 'ADMIN' } });
-    res.json({ status: 'ok', db: 'connected', env: process.env.NODE_ENV, seeded: !!adminExists });
+    res.json({ 
+      status: 'ok', 
+      db: 'connected', 
+      env: process.env.NODE_ENV, 
+      seeded: !!adminExists,
+      v: "3" 
+    });
   } catch (err) {
-    console.error('Health check DB error:', err);
-    res.status(500).json({ status: 'error', db: 'disconnected', error: err.message });
+    res.status(500).json({ status: 'error', error: err.message });
   }
 });
 
@@ -64,7 +69,7 @@ app.post('/api/seed', async (req, res) => {
   try {
     const p = getPrisma();
     const existingAdmin = await p.user.findFirst({ where: { role: 'ADMIN' } });
-    if (existingAdmin) return res.json({ message: 'Already seeded' });
+    if (existingAdmin) return res.json({ message: 'Already seeded', email: 'demo@anand.com' });
 
     const hashedPassword = await bcrypt.hash('admin123', 10);
     const admin = await p.user.create({
@@ -82,9 +87,11 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const p = getPrisma();
     let user = await p.user.findUnique({ where: { email } });
+    
     if (!user && email === 'demo@anand.com' && password === 'admin123') {
-       user = { id: 'demo-admin', email: 'demo@anand.com', role: 'ADMIN' };
+      user = { id: 'demo-admin', email: 'demo@anand.com', role: 'ADMIN' };
     }
+
     if (!user || user.role !== role) return res.status(400).json({ error: 'Invalid credentials' });
     
     if (user.id !== 'demo-admin') {
