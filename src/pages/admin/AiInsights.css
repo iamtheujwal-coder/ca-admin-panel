@@ -1,0 +1,282 @@
+.ai-insights {
+  padding: var(--space-8);
+  min-height: 100%;
+}
+
+.ai-insights__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: var(--space-10);
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(212, 175, 55, 0.1);
+  color: var(--color-accent-primary-light);
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  margin-bottom: var(--space-4);
+}
+
+.ai-insights__header h1 {
+  font-size: var(--text-4xl);
+  margin-bottom: var(--space-2);
+}
+
+.ai-insights__header p {
+  color: var(--color-text-secondary);
+}
+
+.ai-insights__stats {
+  display: flex;
+  gap: 40px;
+}
+
+.insight-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insight-stat__label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.insight-stat__value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-accent-primary-light);
+}
+
+.ai-insights__grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: var(--space-8);
+}
+
+.glass-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: var(--space-6);
+  backdrop-filter: blur(10px);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-6);
+}
+
+.card-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Practice Pulse Viz */
+.ai-insights__overview {
+  margin-bottom: var(--space-8);
+}
+
+.pulse-viz {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-4);
+}
+
+.pulse-circles {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brain-icon {
+  z-index: 2;
+  color: var(--color-accent-primary);
+  filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.4));
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.circle {
+  position: absolute;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: 50%;
+  opacity: 0;
+  animation: pulse-ring 4s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.circle-1 { animation-delay: 0s; }
+.circle-2 { animation-delay: 1.3s; }
+.circle-3 { animation-delay: 2.6s; }
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.pulse-text h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  background: linear-gradient(to right, #fff, #D4AF37);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Insight Cards */
+.ai-insights__list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.insight-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.insight-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(8px);
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+.insight-card__icon {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.insight-card.critical .insight-card__icon { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+.insight-card.high .insight-card__icon { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+.insight-card.medium .insight-card__icon { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+
+.insight-card__body h4 {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.insight-card__body p {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.insight-card__btn {
+  margin-left: auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* Charts & Side Content */
+.ai-insights__forecast {
+  margin-bottom: var(--space-8);
+}
+
+.forecast-chart {
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  padding: 0 10px;
+  margin-bottom: 16px;
+}
+
+.forecast-bar {
+  flex: 1;
+  height: var(--height);
+  background: linear-gradient(to top, rgba(212, 175, 55, 0.1), var(--color-accent-primary));
+  border-radius: 6px 6px 2px 2px;
+  position: relative;
+  transition: height 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bar-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: var(--color-accent-primary);
+  filter: blur(10px);
+  opacity: 0.4;
+}
+
+.forecast-legend {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.compliance-checklist {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compliance-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+}
+
+.dot.active {
+  background: var(--color-success);
+  box-shadow: 0 0 8px var(--color-success);
+}

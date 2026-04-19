@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   // "ADMIN" or "CLIENT"
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  clientProfile   ClientProfile?
+  workflows       Workflow[]       @relation("ClientWorkflows")
+  assignedTasks   Workflow[]       @relation("AssignedWorkflows")
+  invoices        Invoice[]
+  notifications   Notification[]
+  documents       Document[]
+  complianceItems ComplianceItem[]
+}
+
+model ClientProfile {
+  id              String   @id @default(uuid())
+  companyName     String
+  type            String   @default("Private Limited")
+  industry        String?
+  gstin           String?
+  pan             String?
+  directors       String?  // JSON string or comma separated
+  status          String   @default("active") // active, inactive, pending
+  complianceScore Int      @default(100)
+  revenue         String   @default("0") // Stored as string to handle large numbers for sqlite
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Link to User
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Workflow {
+  id          String   @id @default(uuid())
+  title       String
+  clientId    String
+  client      User     @relation("ClientWorkflows", fields: [clientId], references: [id], onDelete: Cascade)
+  type        String
+  status      String   @default("todo") // todo, in-progress, review, filed
+  assigneeId  String?
+  assignee    User?    @relation("AssignedWorkflows", fields: [assigneeId], references: [id])
+  dueDate     DateTime
+  priority    String   @default("medium") // low, medium, high, critical
+  progress    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  invoiceNo   String   @unique
+  clientId    String
+  client      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  amount      Float
+  status      String   @default("pending") // paid, pending, overdue
+  issueDate   DateTime @default(now())
+  dueDate     DateTime
+  services    String   // JSON string of array
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  name        String
+  category    String
+  size        String
+  status      String   @default("pending") // processed, pending, error
+  type        String
+  clientId    String
+  client      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  uploadDate  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ComplianceItem {
+  id          String   @id @default(uuid())
+  title       String
+  clientId    String
+  client      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type        String
+  status      String   @default("pending") // pending, filed, overdue, upcoming
+  dueDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  title       String
+  message     String
+  type        String   @default("info") // info, warning, success, error
+  read        Boolean  @default(false)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model AIInsight {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  type        String   @default("info") // info, warning, error, success
+  confidence  Int      @default(100)
+  action      String   @default("View Details")
+  createdAt   DateTime @default(now())
+}
