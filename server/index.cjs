@@ -9,8 +9,29 @@ const app = express();
 
 // Singleton Prisma client for serverless (avoids connection pool exhaustion)
 const globalForPrisma = globalThis;
-const prisma = globalForPrisma.__prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.__prisma = prisma;
+let prisma;
+
+function getPrisma() {
+  if (prisma) return prisma;
+  try {
+    prisma = globalForPrisma.__prisma || new PrismaClient({
+      log: ['error', 'warn'],
+    });
+    if (process.env.NODE_ENV !== 'production') globalForPrisma.__prisma = prisma;
+    return prisma;
+  } catch (err) {
+    console.error('Prisma initialization failed:', err);
+    throw err;
+  }
+}
+
+// Initial proxy or just call getPrisma() in routes
+// For simplicity, let's initialize it but catch errors
+try {
+  prisma = getPrisma();
+} catch (e) {
+  console.error("Immediate Prisma Error:", e);
+}
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_dev_only';
