@@ -5,9 +5,23 @@ import {
   AlertTriangle, User, GripVertical, Trash2,
   Eye, Tag
 } from 'lucide-react';
-import { workflows as initialWorkflows, clients } from '../../data/mockData';
-import type { Workflow } from '../../data/mockData';
+import axios from 'axios';
+import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../config';
 import './Workflows.css';
+
+export interface Workflow {
+  id: string;
+  title: string;
+  client: string;
+  clientId: string;
+  type: string;
+  status: string;
+  assignee: string;
+  dueDate: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  progress: number;
+}
 
 type ColumnId = 'in-progress' | 'todo' | 'review' | 'filed';
 
@@ -29,9 +43,10 @@ const priorityOptions = ['low', 'medium', 'high', 'critical'] as const;
 const typeOptions = ['GST', 'TDS', 'Income Tax', 'Audit', 'ROC', 'Payroll'] as const;
 
 export default function Workflows() {
-  const [workflowList, setWorkflowList] = useState<Workflow[]>(
-    initialWorkflows.map(w => ({ ...w }))
-  );
+  const { token } = useAuthStore();
+  const [workflowList, setWorkflowList] = useState<Workflow[]>([]);
+  const [liveClients, setLiveClients] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
@@ -78,6 +93,25 @@ export default function Workflows() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      const [workflowsRes, clientsRes] = await Promise.all([
+        axios.get(`${API_URL}/admin/workflows`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/admin/clients`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setWorkflowList(workflowsRes.data);
+      setLiveClients(clientsRes.data);
+    } catch (err) {
+      console.error('Failed to fetch data', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ---- Filtering ----
   const filteredWorkflows = workflowList.filter(w => {
     const matchSearch = !searchTerm ||
@@ -98,7 +132,7 @@ export default function Workflows() {
   const activeFilterCount = [filterType, filterPriority, filterAssignee].filter(f => f !== 'all').length;
 
   // ---- Unique assignees ----
-  const assignees = [...new Set(initialWorkflows.map(w => w.assignee))];
+  const assignees = ['Admin']; // Fallback options for assigning
 
   // ---- Drag & Drop ----
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -116,14 +150,24 @@ export default function Workflows() {
     setDragOverCol(null);
   };
 
-  const handleDrop = (e: React.DragEvent, colId: ColumnId) => {
+  const handleDrop = async (e: React.DragEvent, colId: ColumnId) => {
     e.preventDefault();
     if (draggedId) {
+      // Optimistic Update
       setWorkflowList(prev =>
         prev.map(w => w.id === draggedId
           ? { ...w, status: colId, progress: colId === 'filed' ? 100 : w.progress }
           : w)
       );
+
+      try {
+        await axios.put(`${API_URL}/admin/workflows/${draggedId}`, { status: colId }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error('Failed to update workflow status', err);
+        fetchInitialData(); // Revert on failure
+      }
     }
     setDraggedId(null);
     setDragOverCol(null);
@@ -135,7 +179,7 @@ export default function Workflows() {
   };
 
   // ---- Move workflow via button ----
-  const moveWorkflow = (id: string, newStatus: ColumnId) => {
+  const moveWorkflow = async (id: string, newStatus: ColumnId) => {
     setWorkflowList(prev =>
       prev.map(w => w.id === id
         ? { ...w, status: newStatus, progress: newStatus === 'filed' ? 100 : w.progress }
@@ -143,34 +187,69 @@ export default function Workflows() {
     );
     setCardMenu(null);
     setSelectedWorkflow(null);
+
+    try {
+      await axios.put(`${API_URL}/admin/workflows/${id}`, { status: newStatus }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (err) {
+      fetchInitialData();
+    }
   };
 
   // ---- Delete workflow ----
-  const deleteWorkflow = (id: string) => {
+  const deleteWorkflow = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this workflow?")) return;
     setWorkflowList(prev => prev.filter(w => w.id !== id));
     setCardMenu(null);
     setSelectedWorkflow(null);
+    
+    try {
+      await axios.delete(`${API_URL}/admin/workflows/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (err) {
+      fetchInitialData();
+    }
   };
 
   // ---- Create workflow ----
-  const handleCreateWorkflow = () => {
+  const handleCreateWorkflow = async () => {
     if (!newWorkflow.title || !newWorkflow.client) return;
-    const id = `w${Date.now()}`;
-    const wf: Workflow = {
-      id,
-      title: newWorkflow.title,
-      client: newWorkflow.client,
-      clientId: '',
-      type: newWorkflow.type,
-      status: newWorkflow.status,
-      assignee: newWorkflow.assignee || 'Anand',
-      dueDate: newWorkflow.dueDate || 'TBD',
-      priority: newWorkflow.priority,
-      progress: 0,
-    };
-    setWorkflowList(prev => [...prev, wf]);
-    setShowNewModal(false);
-    setNewWorkflow({ title: '', client: '', type: 'GST', assignee: '', dueDate: '', priority: 'medium', status: 'todo' });
+    
+    try {
+      // Find selected client ID
+      const selectedClient = liveClients.find(c => c.id === newWorkflow.client);
+      
+      const res = await axios.post(`${API_URL}/admin/workflows`, {
+        title: newWorkflow.title,
+        clientId: newWorkflow.client, // we stored ID in newWorkflow.client for the select
+        type: newWorkflow.type,
+        status: newWorkflow.status,
+        dueDate: newWorkflow.dueDate || new Date().toISOString(),
+        priority: newWorkflow.priority
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      
+      const newWf: Workflow = {
+        id: res.data.id,
+        title: res.data.title,
+        client: selectedClient?.clientProfile?.companyName || selectedClient?.email || 'Unknown',
+        clientId: res.data.clientId,
+        type: res.data.type,
+        status: res.data.status,
+        assignee: 'Admin', // default self
+        dueDate: new Date(res.data.dueDate).toISOString().split('T')[0],
+        priority: res.data.priority,
+        progress: res.data.progress,
+      };
+      
+      setWorkflowList(prev => [newWf, ...prev]);
+      setShowNewModal(false);
+      setNewWorkflow({ title: '', client: '', type: 'GST', assignee: '', dueDate: '', priority: 'medium', status: 'todo' });
+    } catch (err) {
+       console.error('Failed to create workflow', err);
+       alert('Failed to create workflow');
+    }
   };
 
   // ---- Helpers ----
@@ -304,7 +383,9 @@ export default function Workflows() {
         </div>
       )}
 
-      {/* Kanban Board */}
+      {isLoading ? (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading workflows...</div>
+      ) : (
       <div className="wf-board">
         {columns.map(col => {
           const colWorkflows = getColumnWorkflows(col.id);
@@ -417,6 +498,7 @@ export default function Workflows() {
           );
         })}
       </div>
+      )}
 
       {/* ===== Workflow Detail Modal ===== */}
       {selectedWorkflow && (
@@ -563,7 +645,7 @@ export default function Workflows() {
                     id="new-workflow-client"
                   >
                     <option value="">Select client</option>
-                    {clients.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    {liveClients.map(c => <option key={c.id} value={c.id}>{c.clientProfile?.companyName || c.email}</option>)}
                   </select>
                 </div>
                 <div className="wf-form-group">

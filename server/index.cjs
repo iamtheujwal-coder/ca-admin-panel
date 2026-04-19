@@ -158,6 +158,143 @@ app.post('/api/admin/clients', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
+// --- Workflows ---
+
+// Admin: Get all workflows
+app.get('/api/admin/workflows', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const workflowsData = await prisma.workflow.findMany({
+      include: {
+        client: { include: { clientProfile: true } },
+        assignee: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    const formatted = workflowsData.map(w => ({
+      id: w.id,
+      title: w.title,
+      client: w.client?.clientProfile?.companyName || w.client?.email || 'Unknown Client',
+      clientId: w.clientId,
+      type: w.type,
+      status: w.status,
+      assignee: w.assignee?.name || 'Unassigned',
+      dueDate: w.dueDate.toISOString().split('T')[0],
+      priority: w.priority,
+      progress: w.progress,
+      createdAt: w.createdAt
+    }));
+    res.json(formatted);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Create workflow
+app.post('/api/admin/workflows', authenticateToken, isAdmin, async (req, res) => {
+  const { title, clientId, type, status, dueDate, priority } = req.body;
+  try {
+    const workflow = await prisma.workflow.create({
+      data: {
+        title,
+        clientId,
+        type,
+        status: status || 'todo',
+        assigneeId: req.user.id, // Current Admin creates it, we assign it to them by default
+        dueDate: new Date(dueDate),
+        priority: priority || 'medium',
+        progress: status === 'filed' ? 100 : 0
+      }
+    });
+    res.json(workflow);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Update workflow
+app.put('/api/admin/workflows/:id', authenticateToken, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { status, progress } = req.body;
+  try {
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (progress !== undefined) updateData.progress = progress;
+    else if (status === 'filed') updateData.progress = 100;
+    
+    const workflow = await prisma.workflow.update({
+      where: { id },
+      data: updateData
+    });
+    res.json(workflow);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Delete workflow
+app.delete('/api/admin/workflows/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    await prisma.workflow.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// --- Invoices ---
+
+// Admin: Get all invoices
+app.get('/api/admin/invoices', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const invoices = await prisma.invoice.findMany({
+      include: { client: { include: { clientProfile: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.json(invoices.map(inv => ({
+      id: inv.id,
+      invoiceNo: inv.invoiceNo,
+      client: inv.client?.clientProfile?.companyName || inv.client?.email || 'Unknown',
+      clientId: inv.clientId,
+      amount: inv.amount,
+      status: inv.status,
+      issueDate: inv.issueDate.toISOString().split('T')[0],
+      dueDate: inv.dueDate.toISOString().split('T')[0],
+      services: JSON.parse(inv.services || '[]')
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Create Invoice
+app.post('/api/admin/invoices', authenticateToken, isAdmin, async (req, res) => {
+  const { invoiceNo, clientId, amount, status, issueDate, dueDate, services } = req.body;
+  try {
+    const inv = await prisma.invoice.create({
+      data: {
+        invoiceNo,
+        clientId,
+        amount: parseFloat(amount),
+        status: status || 'pending',
+        issueDate: issueDate ? new Date(issueDate) : new Date(),
+        dueDate: dueDate ? new Date(dueDate) : new Date(),
+        services: JSON.stringify(services || [])
+      }
+    });
+    res.json(inv);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // 5. Client: Get own profile
 app.get('/api/client/profile', authenticateToken, async (req, res) => {
   try {

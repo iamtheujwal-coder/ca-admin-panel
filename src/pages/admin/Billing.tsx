@@ -1,13 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Plus, CreditCard, Search, FileText, X } from 'lucide-react';
-import { invoices as mockInvoices, formatCurrency } from '../../data/mockData';
-import type { Invoice } from '../../data/mockData';
+import axios from 'axios';
+import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../config';
+import { formatCurrency } from '../../data/mockData';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+export interface Invoice {
+  id: string;
+  invoiceNo: string;
+  client: string;
+  clientId: string;
+  amount: number;
+  status: 'paid' | 'pending' | 'overdue';
+  issueDate: string;
+  dueDate: string;
+  services: string[];
+}
+
 export default function Billing() {
+  const { token } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [localInvoices, setLocalInvoices] = useState<Invoice[]>(mockInvoices);
+  const [localInvoices, setLocalInvoices] = useState<Invoice[]>([]);
+  const [liveClients, setLiveClients] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   
   const [newInvoice, setNewInvoice] = useState({
@@ -19,25 +36,63 @@ export default function Billing() {
     services: ''
   });
 
-  const handleCreate = () => {
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      const [invoicesRes, clientsRes] = await Promise.all([
+        axios.get(`${API_URL}/admin/invoices`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/admin/clients`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setLocalInvoices(invoicesRes.data);
+      setLiveClients(clientsRes.data);
+    } catch (err) {
+      console.error('Failed to fetch billing data', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
     if (!newInvoice.client || !newInvoice.amount) return;
     
+    // Fallback invoiceNo if backend doesn't handle sequence
     const nextNum = (localInvoices.length + 1).toString().padStart(4, '0');
+    const invoiceNo = `AT-2026-${nextNum}`;
     
-    const inv: Invoice = {
-      id: `inv_new_${Date.now()}`,
-      invoiceNo: `AT-2026-${nextNum}`,
-      client: newInvoice.client,
-      amount: parseFloat(newInvoice.amount),
-      status: newInvoice.status as any,
-      issueDate: newInvoice.issueDate || new Date().toISOString().split('T')[0],
-      dueDate: newInvoice.dueDate || new Date().toISOString().split('T')[0],
-      services: newInvoice.services.split(',').map(s => s.trim()).filter(Boolean)
-    };
+    try {
+      const selectedClient = liveClients.find(c => c.id === newInvoice.client);
+      const res = await axios.post(`${API_URL}/admin/invoices`, {
+        invoiceNo,
+        clientId: newInvoice.client,
+        amount: newInvoice.amount,
+        status: newInvoice.status,
+        issueDate: newInvoice.issueDate || new Date().toISOString().split('T')[0],
+        dueDate: newInvoice.dueDate || new Date().toISOString().split('T')[0],
+        services: newInvoice.services.split(',').map(s => s.trim()).filter(Boolean)
+      }, { headers: { Authorization: `Bearer ${token}` } });
 
-    setLocalInvoices([inv, ...localInvoices]);
-    setShowModal(false);
-    setNewInvoice({ client: '', amount: '', status: 'pending', issueDate: '', dueDate: '', services: '' });
+      const inv: Invoice = {
+        id: res.data.id,
+        invoiceNo: res.data.invoiceNo,
+        client: selectedClient?.clientProfile?.companyName || selectedClient?.email || 'Unknown',
+        clientId: res.data.clientId,
+        amount: res.data.amount,
+        status: res.data.status,
+        issueDate: new Date(res.data.issueDate).toISOString().split('T')[0],
+        dueDate: new Date(res.data.dueDate).toISOString().split('T')[0],
+        services: JSON.parse(res.data.services || '[]')
+      };
+
+      setLocalInvoices([inv, ...localInvoices]);
+      setShowModal(false);
+      setNewInvoice({ client: '', amount: '', status: 'pending', issueDate: '', dueDate: '', services: '' });
+    } catch (err) {
+      console.error('Failed to create invoice', err);
+      alert('Error creating invoice');
+    }
   };
 
   const handleDownload = (invoice: Invoice) => {
@@ -120,6 +175,9 @@ export default function Billing() {
             />
           </div>
         </div>
+        {isLoading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading invoices...</div>
+        ) : (
         <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--color-border)' }}>
@@ -169,7 +227,8 @@ export default function Billing() {
             ))}
           </tbody>
         </table>
-        {filteredInvoices.length === 0 && (
+        )}
+        {!isLoading && filteredInvoices.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
             No invoices found.
           </div>
@@ -187,11 +246,13 @@ export default function Billing() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>Client Name</label>
-                <input 
+                <select 
                   value={newInvoice.client} onChange={e => setNewInvoice({...newInvoice, client: e.target.value})}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', outline: 'none' }} 
-                  placeholder="e.g. Acme Corp" 
-                />
+                >
+                  <option value="">Select a client</option>
+                  {liveClients.map(c => <option key={c.id} value={c.id}>{c.clientProfile?.companyName || c.email}</option>)}
+                </select>
               </div>
 
               <div style={{ display: 'flex', gap: '16px' }}>
