@@ -1,10 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -37,7 +38,7 @@ model ClientProfile {
   directors       String?  // JSON string or comma separated
   status          String   @default("active") // active, inactive, pending
   complianceScore Int      @default(100)
-  revenue         String   @default("0") // Stored as string to handle large numbers for sqlite
+  revenue         String   @default("0")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   

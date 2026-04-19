@@ -3,20 +3,20 @@ const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
 const app = express();
-const prisma = new PrismaClient();
+
+// Singleton Prisma client for serverless (avoids connection pool exhaustion)
+const globalForPrisma = globalThis;
+const prisma = globalForPrisma.__prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.__prisma = prisma;
+
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_dev_only';
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
-
-console.log('--- Startup Config ---');
-console.log('Current Directory:', process.cwd());
-console.log('Database URL:', process.env.DATABASE_URL);
-console.log('Environment:', process.env.NODE_ENV);
-console.log('----------------------');
 
 // --- Authentication Middleware ---
 const authenticateToken = (req, res, next) => {
@@ -40,8 +40,67 @@ const isAdmin = (req, res, next) => {
 };
 
 // --- Health Check ---
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', environment: process.env.NODE_ENV });
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', db: 'connected', environment: process.env.NODE_ENV });
+  } catch (err) {
+    res.json({ status: 'ok', db: 'disconnected', error: err.message });
+  }
+});
+
+// --- Seed / Bootstrap (creates tables + admin) ---
+app.post('/api/seed', async (req, res) => {
+  try {
+    // Check if admin already exists
+    const existingAdmin = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+    if (existingAdmin) {
+      return res.json({ message: 'Database already seeded', adminEmail: existingAdmin.email });
+    }
+
+    // Create admin user
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const admin = await prisma.user.create({
+      data: {
+        email: 'demo@anand.com',
+        password: hashedPassword,
+        role: 'ADMIN',
+        name: 'CA Anand Thakur'
+      }
+    });
+
+    // Create a sample client
+    const clientPass = await bcrypt.hash('client123', 10);
+    const client = await prisma.user.create({
+      data: {
+        email: 'client@acme.com',
+        password: clientPass,
+        role: 'CLIENT',
+        name: 'Acme Corp Admin',
+        clientProfile: {
+          create: {
+            companyName: 'Acme Corporation',
+            type: 'Private Limited',
+            industry: 'Technology',
+            gstin: '27AABCU9603R1ZM',
+            pan: 'AABCU9603R',
+            status: 'active',
+            complianceScore: 92,
+            revenue: '15000000'
+          }
+        }
+      }
+    });
+
+    res.json({ 
+      message: 'Database seeded successfully!', 
+      admin: { email: admin.email },
+      sampleClient: { email: client.email }
+    });
+  } catch (err) {
+    console.error('Seed error:', err);
+    res.status(500).json({ error: 'Seed failed', details: err.message });
+  }
 });
 
 // --- Routes ---
